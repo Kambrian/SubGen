@@ -32,7 +32,7 @@ class ModelParameter:
 	
 class SubhaloSample:
   ''' a sample of subhaloes '''
-  def __init__(self,M,N=1e4,MMinInfall=1e-5,MMaxInfall=1e-1,Rmax=2,C=None,include_disruption=True,weighted_sample=False):
+  def __init__(self,M,N=1e4,MMinInfall=1e-5,MMaxInfall=1e-1,Rmax=2,C=None,include_disruption=True,weighted_sample=True):
 	''' initialize the sampling parameters.
   
 	M: host mass in 1e10Msun/h

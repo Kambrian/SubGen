@@ -1,17 +1,5 @@
-''' generate Monte-Carlo samples of subhaloes, according to Han et. al. (2015).
-
-You only need to specify the host halo mass, and the number of subhaloes to sample.
-
-The basic sample contains:
-
-R: radial coordinate of subhalo, in unit of host R200
-m: subhalo mass, in unit of 10^10Msun/h
-mAcc: subhalo infall mass, in unit of 10^10Msun/h
-weight: the number of appearances of this subhalo. This exists because the number of sampled subhaloes may not be the same as the expected number of subhaloes. The subhalo abundance can be correctly recovered when counting with this weight.
-
-optional properties include the subhalo stellar mass, annihilation luminosity (adopting Ludlow14 mass-concentration by default), and projected radial coordinate Rp. units: mStar/[1e10Msun/h], Luminosity/[(1e10Msun/h)^2/(kpc/h)^3],Rp/R200.
-
-For more advanced features, check the source code subgen.py and nfw.py
+''' an example code to populate subhaloes in a cluster halo
+Check the readme for more guidance.
 '''
 from subgen import *
 from histogram import myhist 
