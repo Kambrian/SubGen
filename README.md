@@ -1,5 +1,5 @@
 ## `SubGen`: a fast subhalo sampler 
-`SubGen` generates Monte-Carlo samples of subhaloes, according to the unified subhalo distribution in Han et. al. (2015; coming soon). Download the code from http://kambrian.github.io/SubGen.
+`SubGen` generates Monte-Carlo samples of dark matter subhaloes, according to the unified subhalo distribution model in Han et. al. (2015; coming soon). Download the code from http://kambrian.github.io/SubGen.
 
 To get started, check `example.py`. You only need to specify the host halo mass, and the number of subhaloes to sample.
 
