@@ -1,116 +1,10 @@
 ''' generate Monte-Carlo samples of subhaloes.
-
-Only survived subhaloes are generated.
-If you also want the disrupted population, simply set m=0 in the survived subhaloes while keeping mAcc and R intact. Then take fs fraction of entries.
-
 '''
-import sys,os
 import numpy as np
 import matplotlib.pyplot as plt
-import h5py
 from nfw import NFWHalo,mean_concentration
-from MbdIO import cross_section
 import emcee
-from myutils import myhist
 
-####################### User Parameters #############################
-MASS_HOST=1e6 #Host mass in unit of 1e10Msun/h
-CONC_HOST=None #Host concentration. If None, determine concentration automatically from an average mass-concentration relation
-NUM_SURV_SUBS=1e5 #number of survived subhaloes to sample (excluding disrupted, i.e., m=0, subhaloes)
-R_MAX=2. #maximum radius to sample, in units of host virial radius
-MASS_MIN_INFALL=1e-5*MASS_HOST #minimum infall mass
-MASS_MAX_INFALL=MASS_HOST/10. #maximum infall mass
-UNIFORM_MASS_SAMPLING=True #whether to sample the mass uniformly. If true, the mass between MASS_MIN_INFALL and MASS_MAX_INFALL will be uniformly sampled in logspace. Each datapoint in the sample does not represent a single subhalo, but N subhaloe as given by the "Multiplicity" column, so that the subhalo mass function is determined from the Multiplicity-weighted counts. This sampling scheme is useful when the dynamical range between MASS_MIN_INFALL and MASS_MAX_INFALL is huge (e.g., from 1e-6 to 1e15 Msun/h when studying subhalo annihilation emission), so that the probability to obtain a subhalo at the highest mass end is negligible compared with that at the lowest mass end. Without uniform mass sampling, the sample would then contain no high mass objects because the high mass end is so poorly sampled. When UNIFORM_MASS_SAMPLING=False, every subhalo will have the same Multiplicity. In both cases, the multiplicity-weighted total counts equal to the number of survived subhaloes between MASS_MIN_INFALL and MASS_MAX_INFALL in a single host halo of MASS_HOST, according to the infall mass function.
-
-
-###################### Internal Model Parameters #####################################
-class ModelParameter(obj):
-  ''' container for model parameters. contains fs, A, alpha, mustar, beta parameters.'''
-  def __init__(Mhost):
-	''' model parameters for a given host mass Mhost, in units of 1e10Msun/h '''
-	fs=0.55 #fraction of survived subhaloes
-	A=0.1*Mhost**-0.02 #infall mass function amplitude
-	alpha=0.95 #infall mass function slope
-	mustar=0.5*Mhost**-0.03 #stripping function amplitude
-	beta=1.7*Mhost**-0.04 #stripping function slope
-
-ModelPars=ModelParameter(MASS_HOST)
-Host=NFWHalo(MASS_HOST,Chost) 
-#Host.density=my_density_func #to use custom density, overwrite Host.density() function.
-Host.Msample=Host.mass(R_MAX*Host.Rv) #mass inside Rmax
-NUM_SUBS_PRED=ModelPars.fs*ModelPars.A*Host.Msample*(MASS_MIN_INFALL**-ModelPars.alpha-MASS_MAX_INFALL**-ModelPars.alpha)/ModelPars.alpha #expected number of subhaloes per host.
-#=================================Generate mu and R=======================================
-def lnPDF(x):
-  ''' R in units of Rv'''
-  lnmu,lnR=x
-  lnmubar=np.log(ModelPars.mustar)+ModelPars.beta*lnR
-  dlnmu=lnmu-lnmubar
-  if lnmu>0: #mu<1
-	return -np.inf
-  if dlnmu>np.log(4.2): #mu<mumax=4.2*mubar
-	return -np.inf
-  if lnR>np.log(R_MAX):
-	return -np.inf
-  
-  lnPDFmu=-0.5*(dlnmu/sigma)**2
-  lnPDFR=3.*lnR+np.log(Host.density(np.exp(lnR)*Host.Rv)) #dM/dlnR=rho*R^3. 
-  return lnPDFmu+lnPDFR
-
-####### run emcee ############
-nwalkers=8
-nburn=200
-nsteps=int(NUM_SUBS/nwalkers+nburn)
-print 'running %d steps'%nsteps
-ndim=2
-
-x00=np.array([-0.5,-0.5])
-labels=[r"$\ln \mu$",r"$\ln R/R_{200}$"]
-x0=np.kron(np.ones([nwalkers,1]),x00)#repmat to nwalkers rows
-x0+=(np.random.rand(ndim*nwalkers).reshape(nwalkers,ndim)-0.5)*0.1 #random offset, [-0.5,0.5]*0.1
-sampler=emcee.EnsembleSampler(nwalkers,ndim,lnPDF)
-sampler.run_mcmc(x0,nsteps)
-
-##examine the walk
-#from matplotlib.pyplot import *
-#ion()
-#figure()
-#for i in range(ndim):
-  #subplot(ndim,1,i)
-  #for j in range(nwalkers):
-    #plot(range(nsteps),sampler.chain[j,:,i],'.')
-  #ylabel(labels[i])
-#xlabel('Step')  
-
-sample=sampler.chain[:,nburn:,:]
-flatchain=sample.reshape([-1,ndim])
-flatchain=np.exp(flatchain) #from log() to linear
-nsub=flatchain.shape[0]
-nsub_disrupt=nsub/ModelPars.fs*(1-ModelPars.fs) #number of disrupted subhaloes.
-print '%d disrupted subhaloes not sampled'%nsub_disrupt
-
-mu,R=flatchain.T
-#==========projections==========================
-phi=np.arccos(np.random.rand(nsub)*2-1.) #random angle around the z-axis
-Rp=R*np.sin(phi)
-#==========generate Infall mass==================================
-if UNIFORM_MASS_SAMPLING:
-  lnmmin,lnmmax=np.log(MASS_MIN_INFALL), np.log(MASS_MAX_INFALL)
-  lnmAcc=np.random.rand(NUM_SUBS)*(lnmmax-lnmmin)+lnmmin #uniform distribution between lnmmin and lnmmax
-  mAcc=np.exp(lnmAcc)
-  #count=mAcc**-alpha
-  #count=count/count.sum()*NUM_SUBS_PRED #w/sum(w)*Npred, equals to dN/dlnm*[delta(lnm)/N] as N->inf
-  Multiplicity=ModelPars.fs*ModelPars.A*Host.Msample*mAcc**-ModelPars.alpha*(lnmmax-lnmmin)/NUM_SUBS #the weight is dN/dlnm*[delta(lnm)/N]
-  print np.sum(Multiplicity), NUM_SUBS_PRED
-else:
-  mmax,mmin=MASS_MIN_INFALL**(-ModelPars.alpha),MASS_MAX_INFALL**(-ModelPars.alpha) 
-  mAcc=np.random.rand(NUM_SUBS)*(mmax-mmin)+mmin #uniform in m**-alpha
-  mAcc=mAcc**-(1./ModelPars.alpha)
-  Multiplicity=NUM_SUBS_PRED/NUM_SUBS*np.ones(NUM_SUBS)
-
-#========== generate final mass =========================
-m=mAcc*mu
-
-#===============generate stellar mass according to infall mass====================
 def InfallMass2StellarMass(mAcc):
   '''mAcc: infall mass, in 1e10Msun/h
   output: stellar mass, in 1e10Msun/h
@@ -125,37 +19,156 @@ def InfallMass2StellarMass(mAcc):
   
   return 2*k/(m**-alpha+m**-beta)
 
-sigmaMstar=0.192
-logMstar=np.log10(InfallMass2StellarMass(mAcc))
-deltalogMstar=np.random.normal(0, sigmaMstar, NUM_SUBS)
-mStar=10**(logMstar+deltalogMstar)
-#============================generate concentration==========================
-sigmaC=0.13 
-deltalogC=np.random.normal(0, sigmaC, NUM_SUBS) #scatter
-logC=np.log10(mean_concentration(mAcc,'MaccioW1')) #mean
-cAcc=10**(logC+deltalogC)
-#===============generate truncation radius and annihilation luminosity===========
-SatHalo=[NFWHalo(mAcc[i], cAcc[i]) for i in range(NUM_SUBS)]
-rt=np.array([SatHalo[i].radius(m[i]) for i in range(NUM_SUBS)]) #truncation radius
-Lt=np.array([SatHalo[i].luminosity(rt[i]) for i in range(NUM_SUBS)]) #truncated luminosity
+class ModelParameter:
+  ''' container for model parameters. contains fs, A, alpha, mustar, beta parameters.'''
+  def __init__(self,M):
+	''' model parameters for a given host mass M, in units of 1e10Msun/h '''
+	self.fs=0.55 #fraction of survived subhaloes
+	self.A=0.1*M**-0.02 #infall mass function amplitude
+	self.alpha=0.95 #infall mass function slope
+	self.mustar=0.5*M**-0.03 #stripping function amplitude
+	self.beta=1.7*M**-0.04 #stripping function slope
+	self.sigma_mu=1.1
+	
+class SubhaloSample:
+  ''' a sample of subhaloes '''
+  def __init__(self,M,N=1e4,MMinInfall=1e-5,MMaxInfall=1e-1,Rmax=2,C=None,include_disruption=True,weighted_sample=False):
+	''' initialize the sampling parameters.
+  
+	M: host mass in 1e10Msun/h
+	N: number of subhaloes to generate
+	MMinInfall: minimum infall mass, in unit of host mass
+	MMaxInfall: maximum infall mass, in unit of host mass
+	Rmax: maximum radius to sample, in unit of host virial radius
+	C: host concentration. If None, it will be determined by the mean mass-concentration relation.
+	include_disruption: whether to include disrupted subhaloes in the sample.
+	weighted_sample: whether to sample the mass in a weighted way, so that different mass ranges are sampled equally well. this is useful if 				you have a large dynamic range in mass, e.g., from 10^-6 to 10^12 Msun.
+	'''
+	self.M=M
+	self.Host=NFWHalo(M,C) 
+	#self.Host.density=my_density_func #to use custom density, overwrite Host.density() function.
+	self.C=self.Host.C
+	self.HOD=ModelParameter(self.M)
+		
+	self.Rmax=Rmax
+	self.Msample=self.Host.mass(Rmax*self.Host.Rv) #mass inside Rmax
+	
+	self.mAccMin=MMinInfall*M
+	self.mAccMax=MMaxInfall*M
+	self.n=N #sample size
+	self.nPred=self.HOD.A*self.Msample*(self.mAccMin**-self.HOD.alpha-self.mAccMax**-self.HOD.alpha)/self.HOD.alpha #expected number of subhaloes per host.
+	
+	self.include_disruption=include_disruption
+	if include_disruption:
+	  self.nSurvive=int(N*self.HOD.fs)
+	  self.nDisrupt=N-self.nSurvive
+	else:
+	  self.nPred*=self.HOD.fs #only survived subhaloes are generated.
+	  self.nSurvive=N
+	  self.nDisrupt=int(N/self.HOD.fs*(1-self.HOD.fs))
 
-#============================save========================================
+	self.weighted_sample=weighted_sample
+	
+  def _lnPDF(self, x):
+	''' R in units of Rv'''
+	lnmu,lnR=x
+	lnmubar=np.log(self.HOD.mustar)+self.HOD.beta*lnR
+	dlnmu=lnmu-lnmubar
+	if lnmu>0: #mu<1
+	  return -np.inf
+	if dlnmu>np.log(4.2): #mu<mumax=4.2*mubar
+	  return -np.inf
+	if lnR>np.log(self.Rmax):
+	  return -np.inf
+	
+	lnPDFmu=-0.5*(dlnmu/self.HOD.sigma_mu)**2
+	lnPDFR=3.*lnR+np.log(self.Host.density(np.exp(lnR)*self.Host.Rv)) #dM/dlnR=rho*R^3. 
+	return lnPDFmu+lnPDFR
 
-outfile=h5py.File(datadir+'MockCluster-%d.hdf5'%ithread,'w')
-outfile.create_dataset('MHost',data=MASS_HOST)
-dset=outfile.create_dataset('Common', data=common)
-dset.attrs['rows']='count,m,mAcc,R,Rp,phi,mu'
+  def assign_mu_R(self, nwalkers=8, nburn=200, plot_chain=True):
+	'''run emcee to sample mu and R '''
+	nsteps=int(self.n/nwalkers+1+nburn) #one more step to make up for potential round-off in N/nwalkers
+	print 'running %d steps'%nsteps
+	ndim=2
+	x00=np.array([-0.5,-0.5])
+	x0=np.kron(np.ones([nwalkers,1]),x00)#repmat to nwalkers rows
+	x0+=(np.random.rand(ndim*nwalkers).reshape(nwalkers,ndim)-0.5)*0.1 #random offset, [-0.5,0.5]*0.1
+	sampler=emcee.EnsembleSampler(nwalkers,ndim,self._lnPDF)
+	sampler.run_mcmc(x0,nsteps)
+	if plot_chain:
+	  plt.figure()
+	  labels=[r"$\ln \mu$",r"$\ln R/R_{200}$"]
+	  for i in range(ndim):
+		plt.subplot(ndim,1,i+1)
+		for j in range(nwalkers):
+		  plt.plot(range(nsteps),sampler.chain[j,:,i],'.')
+		plt.ylabel(labels[i])
+		plt.plot([nburn,nburn],plt.ylim(),'k--')
+	  plt.xlabel('Step')
+	  plt.subplot(211)
+	  plt.title('%d walkers, %d burn-in steps assumed'%(nwalkers,nburn), fontsize=10)
+	#==========extract mu and R===========
+	sample=sampler.chain[:,nburn:,:]
+	flatchain=sample.reshape([-1,ndim])[-self.n:] #take the last N entries
+	flatchain=np.exp(flatchain) #from log() to linear
+	self.mu,self.R=flatchain.T
+	#==========disruptions===============
+	if self.include_disruption:
+	  self.mu[self.nSurvive:]=0. #trailing masses set to 0.
+	
+  def project_radius(self):
+	phi=np.arccos(np.random.rand(self.n)*2-1.) #random angle around the z-axis
+	self.Rp=self.R*np.sin(phi) #projected radius
 
-dset=outfile.create_dataset('Maccio',data=Maccio)
-dset.attrs['rows']='cAcc,rt,Lt,Lv'
-dset.attrs['sigma_lnC']=sigmaC
+  def assign_mass(self):
+	'''sample m and mAcc'''
+	if self.weighted_sample:
+	  lnmmin,lnmmax=np.log(self.mAccMin), np.log(self.mAccMax)
+	  lnmAcc=np.random.rand(self.n)*(lnmmax-lnmmin)+lnmmin #uniform distribution between lnmmin and lnmmax
+	  self.mAcc=np.exp(lnmAcc)
+	  self.weight=self.mAcc**-self.HOD.alpha
+	  self.weight=self.weight/self.weight.sum()*self.nPred #w/sum(w)*Npred, equals to dN/dlnm*[delta(lnm)/N] as N->inf
+	  #self.weight=self.HOD.fs*self.HOD.A*Host.Msample*mAcc**-self.HOD.alpha*(lnmmax-lnmmin)/self.n #the weight is dN/dlnm*[delta(lnm)/N]
+	  print np.sum(self.weight), self.nPred
+	else:
+	  mmax,mmin=self.mAccMin**(-self.HOD.alpha),self.mAccMax**(-self.HOD.alpha) 
+	  mAcc=np.random.rand(self.n)*(mmax-mmin)+mmin #uniform in m**-alpha which is proportional to N
+	  self.mAcc=mAcc**-(1./self.HOD.alpha)
+	  self.weight=1.*self.nPred/self.n*np.ones(self.n)
+	
+	self.m=self.mAcc*self.mu
 
-dset=outfile.create_dataset('Ludlow',data=Ludlow)
-dset.attrs['rows']='cAcc,rt,Lt,Lv'
-dset.attrs['sigma_lnC']=sigmaC
+  def populate(self, plot_chain=True):
+	'''populate the sample with m,mAcc,R and weight'''
+	self.assign_mu_R(plot_chain=plot_chain)
+	self.assign_mass()
+	
+  def assign_stellarmass(self): 
+	'''generate stellar mass from infall mass, according to an abundance matching model'''
+	logMstar=np.log10(InfallMass2StellarMass(self.mAcc))
+	sigmaLogMstar=0.192
+	deltaLogMstar=np.random.normal(0, sigmaLogMstar, self.n)
+	self.mStar=10**(logMstar+deltaLogMstar)
+  
+  def assign_annihilation_emission(self, concentration_model='Ludlow'):
+	'''generate annihilation luminosity
+	concentration_model: 'MaccioW1', Maccio08 relation with WMAP 1 cosmology
+						 'Ludlow', Ludlow14 relation with WMAP 1 cosmology'''
+	#first generate concentration from infall mass, according to a mass-concetration relation
+	logC=np.log10(mean_concentration(self.mAcc[:self.nSurvive],concentration_model)) #mean
+	sigmaLogC=0.13 
+	deltaLogC=np.random.normal(0, sigmaLogC, self.nSurvive) #scatter
+	cAcc=10**(logC+deltaLogC)
+	SatHalo=[NFWHalo(self.mAcc[i], cAcc[i]) for i in range(self.nSurvive)]
+	rt=np.array([SatHalo[i].radius(self.m[i]) for i in range(self.nSurvive)]) #truncation radius
+	self.L=np.zeros_like(self.m)
+	self.L[:self.nSurvive]=np.array([SatHalo[i].luminosity(rt[i]) for i in range(self.nSurvive)]) #truncated luminosity
 
-dset=outfile.create_dataset('Ludlow1',data=Ludlow1)
-dset.attrs['rows']='cAcc,rt,Lt,Lv'
-dset.attrs['sigma_lnC']=sigmaC
-outfile.close()
+  def save(self, outfile, save_all=False):
+	''' save the sample to outfile.
+	if save_all=True, save all the properties; otherwise only R,m,mAcc,weight will be saved.'''
+	if save_all:
+	  np.savetxt(outfile, np.array([self.R,self.m,self.mAcc,self.weight,self.Rp,self.mStar,self.L]).T, header='R/R200, m/[1e10Msun/h], mAcc/[1e10Msun/h], weight, Rp/R200, mStar/[1e10Msun/h], Luminosity/[(1e10Msun/h)^2/(kpc/h)^3]')
+	else:
+	  np.savetxt(outfile, np.array([self.R,self.m,self.mAcc,self.weight]).T, header='R/R200, m/[1e10Msun/h], mAcc/[1e10Msun/h], weight')
 
