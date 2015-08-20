@@ -3,6 +3,14 @@
 
 To get started, check `example.py`. You only need to specify the host halo mass, and the number of subhaloes to sample.
 
+### Prerequisite
+You need a python installation with the core scientific packages: `numpy`, `matplotlib` and `scipy`.
+You also need the `emcee` package(http://dan.iel.fm/emcee) for MCMC sampling. Try
+   easy_install numpy matplotlib scipy emcee
+or
+   pip install numpy matplotlib scipy emcee
+to install these dependences if you miss them.
+
 ### The basic sample contains:
 
 - R:     radial coordinate of subhalo, in unit of host R200
