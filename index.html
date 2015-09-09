@@ -31,7 +31,7 @@
         <h2>
 <a id="subgen-a-fast-subhalo-sampler" class="anchor" href="#subgen-a-fast-subhalo-sampler" aria-hidden="true"><span class="octicon octicon-link"></span></a><code>SubGen</code>: a fast subhalo sampler</h2>
 
-<p><code>SubGen</code> generates Monte-Carlo samples of dark matter subhaloes, according to the unified subhalo distribution model in Han et. al. (2015; coming soon).</p>
+<p><code>SubGen</code> generates Monte-Carlo samples of dark matter subhaloes, according to the unified subhalo distribution model in Han et. al. (2015; <a href="http://arxiv.org/abs/1509.02175">http://arxiv.org/abs/1509.02175</a>).</p>
 
 <p>To get started, check <code>example.py</code>. You only need to specify the host halo mass, and the number of subhaloes to sample.</p>
 
@@ -41,12 +41,12 @@
 <p>You need a python installation with the core scientific packages: <code>numpy</code>, <code>matplotlib</code> and <code>scipy</code>.
 You also need the <code>emcee</code> package(<a href="http://dan.iel.fm/emcee">http://dan.iel.fm/emcee</a>) for MCMC sampling. Try</p>
 
-<pre><code>easy_install numpy matplotlib scipy emcee
+<pre><code> easy_install numpy matplotlib scipy emcee
 </code></pre>
 
 <p>or</p>
 
-<pre><code>pip install numpy matplotlib scipy emcee
+<pre><code> pip install numpy matplotlib scipy emcee
 </code></pre>
 
 <p>to install these dependences if you miss them.</p>
@@ -56,11 +56,19 @@ You also need the <code>emcee</code> package(<a href="http://dan.iel.fm/emcee">h
 
 <ul>
 <li>R:     radial coordinate of subhalo, in unit of host R200</li>
-<li>m:     subhalo mass, in unit of 10^10Msun/h. By default, disrupted subhaloes are also included in the sample (which may not be useful at all). You can suppress the creation of disrupted subhaloes, and only obtain survived population, by, e.g., 
-    sample=SubhaloSample(M=1e4, include_disruption=False)</li>
-<li>mAcc:  subhalo infall mass, in unit of 10^10Msun/h</li>
-<li>weight: the number of appearances of this subhalo. This exists because the number of sampled subhaloes may not be the same as the expected number of subhaloes. The subhalo abundance can be correctly recovered when counting with this weight. By default, the weights are not uniform but determined by mass function in order to avoid the sample being dominated by low mass objects. If you want uniform weights, you can do, e.g., 
-    sample=SubhaloSample(M=1e4, weighted_sample=False).</li>
+<li>
+<p>m:     subhalo mass, in unit of 10^10Msun/h. By default, disrupted subhaloes are also included in the sample (which may not be useful at all). You can suppress the creation of disrupted subhaloes, and only obtain survived population, by, e.g., </p>
+
+<pre><code>sample=SubhaloSample(M=1e4, include_disruption=False)
+</code></pre>
+</li>
+<li><p>mAcc:  subhalo infall mass, in unit of 10^10Msun/h</p></li>
+<li>
+<p>weight: the number of appearances of this subhalo. This exists because the number of sampled subhaloes may not be the same as the expected number of subhaloes. The subhalo abundance can be correctly recovered when counting with this weight. By default, the weights are not uniform but determined by mass function in order to avoid the sample being dominated by low mass objects. If you want uniform weights, you can do, e.g., </p>
+
+<pre><code>sample=SubhaloSample(M=1e4, weighted_sample=False).
+</code></pre>
+</li>
 </ul>
 
 <h3>
