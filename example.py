@@ -14,7 +14,7 @@ sample.populate()
 sample.save("halo.txt")
 
 #==========now visualize the distribution==============
-Host=sample.Host
+Host=sample.Host #the host halo object, of class "NFWHalo" defined in nfw.py
 # plot the spatial distributions
 def radial_PDF(R,weight,nbin=30):
   '''obtain radial distribution from input radius array R'''

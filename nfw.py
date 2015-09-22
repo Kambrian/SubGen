@@ -37,7 +37,10 @@ def NFWFunc(x):
 class NFWHalo:
   '''NFW halo'''
   def __init__(self,m=100.,c=None):
-	'''initialize '''
+	'''initialize 
+	input mass m200 in unit of 1e10msun/h
+	if concentration c is not given, determine c from the default mass-concentration relation (Ludlow14 model)
+	all radius in unit of kpc/h'''
 	self.M=m
 	if c is None:
 	  self.C=mean_concentration(self.M)
