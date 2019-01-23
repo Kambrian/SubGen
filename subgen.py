@@ -55,7 +55,7 @@ class SubhaloSample:
 	
 	self.mAccMin=MMinInfall*M
 	self.mAccMax=MMaxInfall*M
-	self.n=N #sample size
+	self.n=int(N) #sample size
 	self.nPred=self.HOD.A*self.Msample*(self.mAccMin**-self.HOD.alpha-self.mAccMax**-self.HOD.alpha)/self.HOD.alpha #expected number of subhaloes per host.
 	
 	self.include_disruption=include_disruption
